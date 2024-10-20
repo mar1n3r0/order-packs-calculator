@@ -1,0 +1,28 @@
+# Dockerfile.client
+
+# Build Stage
+FROM golang:alpine AS builder
+
+WORKDIR /app
+
+# Copy go.mod and go.sum files to install dependencies first
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the client source code
+COPY ./client ./client
+
+# Build the client binary
+RUN go build -o client ./client/main.go
+
+# Final Stage
+FROM alpine:latest
+
+WORKDIR /app
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/client .
+
+EXPOSE 5000
+
+CMD ["./main"]
