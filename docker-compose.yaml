@@ -22,8 +22,6 @@ services:
       - mongo
   tests:
     image: golang:1.22
-    depends_on:
-      - server
     stop_signal: SIGKILL
     stdin_open: true
     tty: true
@@ -32,7 +30,7 @@ services:
       - $PWD:$PWD
       - /var/run/docker.sock:/var/run/docker.sock
     command: go test ./... -v
-    
+
   client:
     build:
       context: .
