@@ -4,11 +4,11 @@ docker, docker-compose
 
 # Docker Compose Start
 
-sudo docker-compose up --build
+docker-compose up --build
 
 # Docker Compose Stop
 
-sudo docker-compose down
+docker-compose down
 
 # Server address
 
