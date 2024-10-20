@@ -20,7 +20,19 @@ services:
       - MONGO_URL=mongodb://root:rootpassword@localhost:27017/
     depends_on:
       - mongo
-
+  tests:
+    image: golang:1.22
+    depends_on:
+      - server
+    stop_signal: SIGKILL
+    stdin_open: true
+    tty: true
+    working_dir: $PWD
+    volumes:
+      - $PWD:$PWD
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: go test ./... -v
+    
   client:
     build:
       context: .

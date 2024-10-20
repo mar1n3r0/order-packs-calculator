@@ -2,109 +2,115 @@ package main
 
 import (
     "bytes"
-    "encoding/json"
     "net/http"
     "net/http/httptest"
     "testing"
+    "encoding/json"
+
+    "github.com/gin-gonic/gin"
+    "github.com/stretchr/testify/assert"
 )
 
+// Mock database functions for testing
+var mockDatabase = make(map[string]Pack)
+
 func TestPostPack(t *testing.T) {
-   router := InitRouter()
-   pack := Pack{Size: 10}
-   jsonData, _ := json.Marshal(pack)
+    router := gin.Default()
+    router.POST("/packs", postPack)
 
-   req, _ := http.NewRequest("POST", "/packs", bytes.NewBuffer(jsonData))
-   req.Header.Set("Content-Type", "application/json")
+    // Sample pack data
+    pack := Pack{ID: "1", Size: 10}
 
-   w := httptest.NewRecorder()
-   router.ServeHTTP(w, req)
+    // Convert pack to JSON
+    jsonValue, _ := json.Marshal(pack)
 
-   if w.Code != http.StatusOK {
-       t.Errorf("Expected status code 200, got %d", w.Code)
-   }
+    // Create a request
+    req, _ := http.NewRequest("POST", "/packs", bytes.NewBuffer(jsonValue))
+    req.Header.Set("Content-Type", "application/json")
+
+    // Record the response
+    w := httptest.NewRecorder()
+    router.ServeHTTP(w, req)
+
+    // Assert the response
+    assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestGetAllPacks(t *testing.T) {
-   router := InitRouter()
+    router := gin.Default()
+    router.GET("/packs", getPacks)
 
-   req, _ := http.NewRequest("GET", "/packs", nil)
-   w := httptest.NewRecorder()
-   router.ServeHTTP(w, req)
+    // Populate mock database
+    mockDatabase["1"] = Pack{ID: "1", Size: 20}
 
-   if w.Code != http.StatusOK {
-       t.Errorf("Expected status code 200, got %d", w.Code)
-   }
+    // Create a request
+    req, _ := http.NewRequest("GET", "/packs", nil)
+
+    // Record the response
+    w := httptest.NewRecorder()
+    router.ServeHTTP(w, req)
+
+    // Assert the response
+    assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestGetPack(t *testing.T) {
-   router := InitRouter()
-   
-   // First create a pack to retrieve it later
-   pack := Pack{Size: 10}
-   jsonData, _ := json.Marshal(pack)
+    router := gin.Default()
+    router.GET("/packs/:id", getPack)
 
-   reqPost, _ := http.NewRequest("POST", "/packs", bytes.NewBuffer(jsonData))
-   reqPost.Header.Set("Content-Type", "application/json")
-   
-   wPost := httptest.NewRecorder()
-   router.ServeHTTP(wPost, reqPost)
+    // Populate mock database
+    mockDatabase["1"] = Pack{ID: "1", Size: 10}
 
-   var createdPack Pack
-   json.Unmarshal(wPost.Body.Bytes(), &createdPack)
+    // Create a request
+    req, _ := http.NewRequest("GET", "/packs/1", nil)
 
-   reqGet, _ := http.NewRequest("GET", "/packs/"+createdPack.ID, nil)
-   wGet := httptest.NewRecorder()
-   router.ServeHTTP(wGet, reqGet)
+    // Record the response
+    w := httptest.NewRecorder()
+    router.ServeHTTP(w, req)
 
-   if wGet.Code != http.StatusOK {
-       t.Errorf("Expected status code 200 for getting pack, got %d", wGet.Code)
-   }
+    // Assert the response
+    assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestUpdatePack(t *testing.T) {
-   router := InitRouter()
+    router := gin.Default()
+    router.PUT("/packs/:id", updatePack)
 
-   // Create a pack first
-   pack := Pack{Size: 10}
-   jsonData, _ := json.Marshal(pack)
+    // Populate mock database
+    mockDatabase["1"] = Pack{ID: "1", Size: 100}
 
-   reqPost, _ := http.NewRequest("POST", "/packs", bytes.NewBuffer(jsonData))
-   reqPost.Header.Set("Content-Type", "application/json")
-   
-   wPost := httptest.NewRecorder()
-   router.ServeHTTP(wPost, reqPost)
+    // Sample updated pack data
+    updatedPack := Pack{Size: 100}
 
-   var createdPack Pack
-   json.Unmarshal(wPost.Body.Bytes(), &createdPack)
+    // Convert updated pack to JSON
+    jsonValue, _ := json.Marshal(updatedPack)
 
-   // Update the pack
-   createdPack.Size = 20
-   updatedData, _ := json.Marshal(createdPack)
+    // Create a request
+    req, _ := http.NewRequest("PUT", "/packs/1", bytes.NewBuffer(jsonValue))
+    req.Header.Set("Content-Type", "application/json")
 
-   reqPut, _ := http.NewRequest("PUT", "/packs/"+createdPack.ID, bytes.NewBuffer(updatedData))
-   reqPut.Header.Set("Content-Type", "application/json")
+    // Record the response
+    w := httptest.NewRecorder()
+    router.ServeHTTP(w, req)
 
-   wPut := httptest.NewRecorder()
-   router.ServeHTTP(wPut, reqPut)
-
-   if wPut.Code != http.StatusOK {
-       t.Errorf("Expected status code 200 for updating pack, got %d", wPut.Code)
-   }
+    // Assert the response
+    assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestDeletePack(t *testing.T) {
-   router := InitRouter()
+   router := gin.Default()
+   router.DELETE("/packs/:id", deletePack)
 
-   // Create a pack first
-   pack := Pack{Size: 10}
-   jsonData, _ := json.Marshal(pack)
+   // Populate mock database
+   mockDatabase["1"] = Pack{ID: "1", Size: 100}
 
-   reqPost, _ := http.NewRequest("POST", "/packs", bytes.NewBuffer(jsonData))
-   reqPost.Header.Set("Content-Type", "application/json")
-   
-   wPost := httptest.NewRecorder()
-   router.ServeHTTP(wPost, reqPost)
+   // Create a request
+   req, _ := http.NewRequest("DELETE", "/packs/1", nil)
 
-   var createdPack Pack
-   json.Unmarshal(wPost.Body.Bytes(), &createdPack)
+   // Record the response
+   w := httptest.NewRecorder()
+   router.ServeHTTP(w, req)
+
+   // Assert the response
+   assert.Equal(t, http.StatusNoContent, w.Code)
 }
