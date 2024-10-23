@@ -210,46 +210,215 @@ func (c *calculator) calculatePacks(ctx app.Context, e app.Event) {
 	    return c.packs[i].Size > c.packs[j].Size 
     })
 
-	c.calculatePacksRecursive(c.items, 0)
+	c.calculatePacksRecursive(c.items, 0, 0)
 }
 
 // calculatePacksRecursive is a helper function that performs the actual calculation recursively.
-func (c *calculator) calculatePacksRecursive(items int, packIndex int) { 
+func (c *calculator) calculatePacksRecursive(items int, packIndex int, totalItems int) {
 	if items <= 0 || packIndex >= len(c.packs) { 
 	    return 
     }
 
 	pack := c.packs[packIndex]
 
-	packCount := items / pack.Size 
+	packCount := items / pack.Size
 
-	if packIndex == (len(c.packs)-1) && items-pack.Size > 0 { 
-	    pack.Size = c.packs[packIndex-1].Size 
-    }
+    // choose larger pack when overshooting
+    if len(c.packs) - 1 > packIndex {
+        if (items + 1) / pack.Size > 0 && items % c.packs[packIndex+1].Size != 0 {            
+            packCount = (items + 1) / pack.Size
+        }   
+    } 
 
 	if packCount > 0 { 
+        totalItems += packCount * pack.Size
+        
 	    c.packQuantities = append(c.packQuantities, PackQuantity{ 
 	        Pack: pack.Size,
 	        Quantity: packCount,
 	    }) 
 
-	    items -= packCount * pack.Size 
+	    items -= packCount * pack.Size
+        
     }
 
 	if items > 0 { 
+        
 	    if packIndex < len(c.packs)-1 { 
-	        c.calculatePacksRecursive(items, packIndex+1)
-	    } else { 
-	        nextPackSize := c.packs[packIndex].Size 
+            
+	        c.calculatePacksRecursive(items, packIndex+1, totalItems)
+	    } else {
+            
+	        nextPackSize := c.packs[packIndex].Size
+            pq := []PackQuantity{}
+            var n int
 
-	        c.packQuantities = append(c.packQuantities, PackQuantity{ 
-	            Pack: nextPackSize,
-	            Quantity: 1,
-	        }) 
+            // check if smaller packs can match closer desired amount of items
+            if items > 0 {
+                for i := 1; i * nextPackSize <= totalItems + nextPackSize; i++ {
+                    if i * nextPackSize >= c.items {
+                        if c.items - i * nextPackSize == 0 || c.items - i * nextPackSize < c.items - totalItems + nextPackSize {
+                            n = i
+                        }
+                    }
+                }
+            }
+
+            // compare which pack combination is closer to requirements
+            if n > 0 && n * nextPackSize - c.items < (totalItems + nextPackSize) - c.items {
+                var multiplier int
+                if nextPackSize * n > c.packs[packIndex-1].Size && c.packs[packIndex-1].Size % nextPackSize == 0 {
+                    multiplier =  c.packs[packIndex-1].Size / nextPackSize
+                    
+                    pq = append(pq, PackQuantity{ 
+                        Pack: c.packs[packIndex-1].Size,
+                        Quantity: 1,
+                    })
+                }
+                if multiplier > 0 {
+                    n = n - multiplier
+                }
+                pq = append(pq, PackQuantity{ 
+                    Pack: nextPackSize,
+                    Quantity: n,
+                })
+
+                // check if we can merge duplicate packs into a bigger one
+                cm := c.canMerge(pq)
+                
+                if cm {
+                    c.merge(pq)
+                } else {
+                    c.packQuantities = pq
+                }
+            } else {
+                for i, pq := range c.packQuantities {
+                    if pq.Pack == nextPackSize {
+                        c.packQuantities[i].Quantity++
+                        items = 0
+                    }
+                }
+                if items > 0 {
+                    c.packQuantities = append(c.packQuantities, PackQuantity{ 
+                        Pack: nextPackSize,
+                        Quantity: 1,
+                    }) 
+                }
+
+                // check if we can merge duplicate packs into a bigger one
+                cm := c.canMerge(c.packQuantities)
+                if cm {
+                    c.merge(c.packQuantities)
+                }
+
+                // do a final result check with difference and remainder
+                var finalResultCheck int
+                for _,p := range c.packQuantities {
+                    finalResultCheck += p.Pack * p.Quantity
+                }
+
+                difference := finalResultCheck - c.items
+                index := finalResultCheck / c.packs[packIndex].Size
+                remainder := finalResultCheck % c.packs[packIndex].Size
+
+                
+                
+
+                var pqs PackQuantity
+                for i := 1; i <= index; i++ {
+                    pqs = PackQuantity{
+                        Pack: c.packs[packIndex].Size,
+                        Quantity: i,
+                    }
+                }
+                if remainder > 0 && remainder < difference {
+                    c.packQuantities = nil
+                    c.packQuantities = append(c.packQuantities, pqs)
+                }
+            }
 
 	        items = 0  
 	    }
     }
+}
+
+// canMerge checks for duplicate packs and if they can be merged into a bigger one available
+func (c *calculator) canMerge(pq []PackQuantity) bool {
+    var aggregate int
+    var index int
+    
+    for n, p := range pq {
+        if n > 0 && p.Pack == pq[n-1].Pack {
+            aggregate = p.Pack + p.Pack
+            index = p.Quantity + pq[n].Quantity
+        } else if p.Quantity > 1 {
+            for _, pp := range c.packs {
+                if pp.Size / p.Pack * p.Quantity > 0 {
+                    return true
+                }
+            }
+        }
+    }
+
+    if aggregate > 0 && index > 0 {
+        for _, pp := range c.packs {
+            if pp.Size / aggregate > 0 {
+                return true
+            }
+        }
+    }
+
+    return false
+}
+
+// merge does the actual merging of duplicate packs into a bigger one available
+func (c *calculator) merge(pq []PackQuantity) {
+    var aggregate int
+    var remainder int
+
+    for n, p := range pq {
+        if n > 0 && p.Pack == pq[n-1].Pack {
+            
+            aggregate = p.Pack + p.Pack
+        } else if p.Quantity > 1 {
+            
+            for _, pp := range c.packs {
+                if pp.Size > p.Pack && pp.Size / p.Pack > 0 && pp.Size <= p.Pack * p.Quantity {
+                    
+                    aggregate = pp.Size
+                    remainder = p.Pack * p.Quantity - pp.Size 
+                    
+                    
+                }
+            }
+        }
+    }
+
+    for n, p := range pq {
+        
+        
+        if pq[n].Pack == aggregate {
+            
+            pq[n].Quantity++
+        } else if pq[n].Pack * pq[n].Quantity == aggregate {
+            for _, pp := range c.packs {
+                if pp.Size == aggregate {
+                    
+                    pq = append(pq[:n], pq[n+1:]...)
+                    pq = append(pq, PackQuantity{
+                        Pack: pp.Size,
+                        Quantity: 1,
+                    })
+                }
+            }
+        }
+        if pq[n].Pack == remainder {
+            pq[n].Quantity = remainder / p.Pack
+            
+        }
+    }
+
+    c.packQuantities = pq
 }
 
 // updatePack updates the current selected pack.
